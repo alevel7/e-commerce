@@ -10,24 +10,35 @@ import {
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UserEntity } from './entities/user.entity';
+import { LoginUserDto } from './dto/login-user.dto';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Post('signup')
-  async signup(@Body() createUserDto: CreateUserDto) {
+  async signup(@Body() createUserDto: CreateUserDto): Promise<UserEntity> {
     return await this.usersService.createUser(createUserDto);
   }
 
+  @Post('login')
+  async login(
+    @Body() loginUserDto: LoginUserDto,
+  ): Promise<{ user: UserEntity; accessToken: string }> {
+    const user = await this.usersService.loginUser(loginUserDto);
+    const accessToken = await this.usersService.accessToken(user);
+    return { user, accessToken };
+  }
+
   @Get()
-  findAll() {
-    return this.usersService.findAll();
+  async findAll(): Promise<UserEntity[]>  {
+    return await this.usersService.findAll();
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.usersService.findOne(+id);
+  async findOne(@Param('id') id: string) {
+    return await this.usersService.findOne(+id);
   }
 
   @Patch(':id')

@@ -75,4 +75,4 @@ Nest is [MIT licensed](LICENSE).
 
 ## IMPORTANT COMMANDS
 npm run build && npx typeorm -d dist/db/data-source.js "migration:generate" "db/migrations/initial"
-
+npm run migration:run     

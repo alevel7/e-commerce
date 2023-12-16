@@ -50,4 +50,7 @@ export class UserEntity {
 
   @OneToMany(() => OrderEntity, (order) => order.updatedBy)
   ordersUpdatedBy: OrderEntity[];
+
+  @OneToMany(() => OrderEntity, (order) => order.user)
+  orders: OrderEntity[];
 }

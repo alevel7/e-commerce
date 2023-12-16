@@ -42,4 +42,7 @@ export class OrderEntity {
 
   @OneToMany(() => OrdersProductsEntity, (op) => op.product)
   products: OrdersProductsEntity[];
+
+  @ManyToOne(() => UserEntity, (user) => user.orders)
+  user: UserEntity;
 }

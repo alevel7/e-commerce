@@ -15,6 +15,9 @@ import { AuthenticationGuard } from 'src/utility/guards/auth.guard';
 import { CurrentUser } from 'src/utility/decorators/current-user.decorator';
 import { UserEntity } from 'src/users/entities/user.entity';
 import { OrderEntity } from './entities/order.entity';
+import { AuthorizeGuard } from 'src/utility/guards/authorization.guard';
+import { Roles } from 'src/utility/common/user-roles.enum';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -40,8 +43,13 @@ export class OrdersController {
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateOrderDto: UpdateOrderDto) {
-    return this.ordersService.update(+id, updateOrderDto);
+  @UseGuards(AuthenticationGuard, AuthorizeGuard([Roles.ADMIN]))
+  async update(
+    @Param('id') id: string,
+    @Body() updateOrderStatusDto: UpdateOrderStatusDto,
+    @CurrentUser() user: UserEntity,
+  ) {
+    return await this.ordersService.update(+id, updateOrderStatusDto, user);
   }
 
   @Delete(':id')

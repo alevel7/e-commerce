@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateOrderDto } from './dto/update-order.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -9,6 +13,8 @@ import { UserEntity } from 'src/users/entities/user.entity';
 import { ShippingEntity } from './entities/shipping.entity';
 import { ProductsService } from 'src/products/products.service';
 import { ProductEntity } from 'src/products/entities/product.entity';
+import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { OrderStatus } from './enums/order-status.enum';
 
 @Injectable()
 export class OrdersService {
@@ -75,15 +81,13 @@ export class OrdersService {
       relations: {
         shippingAddress: true,
         user: true,
-        products: {
-          product: true,
-        },
+        products: true,
       },
     });
   }
 
   async findOne(id: number): Promise<OrderEntity> {
-    return await this.orderRepository.findOne({
+    const order = await this.orderRepository.findOne({
       where: {
         id,
       },
@@ -95,13 +99,61 @@ export class OrdersService {
         },
       },
     });
+    if (!order) throw new NotFoundException('Order not found');
+    return order;
   }
 
-  update(id: number, updateOrderDto: UpdateOrderDto) {
+  async update(
+    id: number,
+    updateOrderDto: UpdateOrderStatusDto,
+    user: UserEntity,
+  ) {
+    let order = await this.findOne(id);
+    if (
+      order.status === OrderStatus.DELIVERED ||
+      order.status === OrderStatus.CANCELLED
+    ) {
+      throw new BadRequestException(`Order already ${order.status}`);
+    }
+
+    if (
+      order.status === OrderStatus.PROCESSING &&
+      updateOrderDto.status !== OrderStatus.SHIPPED
+    ) {
+      throw new BadRequestException(`Delivery before shipped? `);
+    }
+
+    if (
+      order.status === OrderStatus.SHIPPED &&
+      updateOrderDto.status === OrderStatus.SHIPPED
+    ) {
+      return order;
+    }
+
+    if (updateOrderDto.status === OrderStatus.DELIVERED) {
+      order.deliveredAt = new Date();
+    }
+    order.status = updateOrderDto.status;
+    order.updatedBy = user;
+    order = await this.orderRepository.save(order);
+
+    if (updateOrderDto.status === OrderStatus.DELIVERED) {
+      await this.stockUpdate(order, updateOrderDto.status);
+    }
     return `This action updates a #${id} order`;
   }
 
   remove(id: number) {
     return `This action removes a #${id} order`;
+  }
+
+  private async stockUpdate(order: OrderEntity, status: string) {
+    for await (const op of order.products) {
+      await this.productService.updateStock(
+        op.product.id,
+        op.product_quantity,
+        status,
+      );
+    }
   }
 }

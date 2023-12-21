@@ -1,4 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -6,10 +12,10 @@ import { ProductEntity } from './entities/product.entity';
 import { Repository } from 'typeorm';
 import { CategoriesService } from 'src/categories/categories.service';
 import { UserEntity } from 'src/users/entities/user.entity';
-import { UpdateCategoryDto } from 'src/categories/dto/update-category.dto';
 import { OrderStatus } from 'src/orders/enums/order-status.enum';
 import dataSource from 'db/data-source';
 import { ProductDto } from './dto/products.dto';
+import { OrdersService } from 'src/orders/orders.service';
 
 @Injectable()
 export class ProductsService {
@@ -17,6 +23,8 @@ export class ProductsService {
     @InjectRepository(ProductEntity)
     private readonly productRepository: Repository<ProductEntity>,
     private categoryService: CategoriesService,
+    @Inject(forwardRef(() => OrdersService))
+    private readonly orderService: OrdersService,
   ) {}
   async create(
     createProductDto: CreateProductDto,
@@ -141,8 +149,11 @@ export class ProductsService {
     return await this.productRepository.save(product);
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} product`;
+  async remove(id: number) {
+    const product = await this.findOne(id);
+    const order = await this.orderService.findOderByProductId(product.id);
+    if (order) throw new BadRequestException('Product is in use');
+    return this.productRepository.remove(product);
   }
 
   async updateStock(

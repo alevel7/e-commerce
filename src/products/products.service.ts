@@ -8,6 +8,8 @@ import { CategoriesService } from 'src/categories/categories.service';
 import { UserEntity } from 'src/users/entities/user.entity';
 import { UpdateCategoryDto } from 'src/categories/dto/update-category.dto';
 import { OrderStatus } from 'src/orders/enums/order-status.enum';
+import dataSource from 'db/data-source';
+import { ProductDto } from './dto/products.dto';
 
 @Injectable()
 export class ProductsService {
@@ -30,8 +32,68 @@ export class ProductsService {
     return await this.productRepository.save(product);
   }
 
-  async findAll(): Promise<ProductEntity[]> {
-    return await this.productRepository.find({});
+  async findAll(query: any): Promise<ProductDto> {
+    let limit: number;
+    if (query.limit) {
+      limit = 4;
+    } else {
+      limit = query.limit;
+    }
+    const queryBuilder = dataSource
+      .getRepository(ProductEntity)
+      .createQueryBuilder('product')
+      .leftJoinAndSelect('product.category', 'category')
+      .leftJoinAndSelect('product.reviews', 'review')
+      .select([
+        'product.*',
+        'category.id',
+        'category.title',
+        'category.description',
+      ])
+      .addSelect([
+        'COUNT(review.id) as reviewCount',
+        'AVG(review.ratings)::numeric(10, 2) as avgRating',
+      ])
+      .groupBy('product.id, category.id');
+    const totalProducts = await queryBuilder.getCount();
+
+    if (query.search) {
+      const search = query.search;
+      queryBuilder.andWhere('product.title like :title', {
+        title: `%${search}%`,
+      });
+    }
+    if (query.category) {
+      queryBuilder.andWhere('category.id=:id', { id: query.category });
+    }
+    if (query.minPrice) {
+      queryBuilder.andWhere('product.price >= :minPrice', {
+        minPrice: query.minPrice,
+      });
+    }
+    if (query.maxPrice) {
+      queryBuilder.andWhere('product.price <= :maxPrice', {
+        maxPrice: query.maxPrice,
+      });
+    }
+    if (query.minRating) {
+      queryBuilder.andHaving('AVG(review.ratings) >= :minRating', {
+        minRating: query.minRating,
+      });
+    }
+    if (query.maxRating) {
+      queryBuilder.andHaving('AVG(review.ratings) <= :maxRating', {
+        maxRating: query.maxRating,
+      });
+    }
+    if (query.offset) {
+      queryBuilder.offset((query.page - 1) * limit);
+    }
+    queryBuilder.limit(limit);
+    const products = await queryBuilder.getRawMany();
+    return { products, totalProducts, limit };
+
+    // return await this.productRepository.find({});
   }
 
   async findOne(id: number): Promise<ProductEntity> {
